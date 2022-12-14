@@ -1,4 +1,4 @@
-package org.tikiSplitPickupAndDelivery;
+package org.tiki.SplitPickupAndDelivery;
 
 public class Main {
 
@@ -12,5 +12,7 @@ public class Main {
             MILPSolver solver = new MILPSolver();
             solver.solve();
         }
+
+
     }
 }

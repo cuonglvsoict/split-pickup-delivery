@@ -1,4 +1,4 @@
-package org.tikiSplitPickupAndDelivery;
+package org.tiki.SplitPickupAndDelivery;
 
 import java.io.File;
 import java.io.FileNotFoundException;
