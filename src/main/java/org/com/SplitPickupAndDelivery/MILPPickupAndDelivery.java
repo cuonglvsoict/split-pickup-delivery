@@ -200,7 +200,7 @@ public class MILPPickupAndDelivery {
         /******************************************************************************
          *                      START ROUTE CONSTRAINTS                               *
          * ****************************************************************************/
-        // constraint 1
+        // every truck must depart from a (logical) departure node
         for (int k: K) {
             MPConstraint c1 = solver.makeConstraint(1,1);
             for (int j: HS2) {
@@ -208,7 +208,7 @@ public class MILPPickupAndDelivery {
             }
         }
 
-        // constraint 1.1
+        // exact K trucks departing from departure nodes
         MPConstraint depart = solver.makeConstraint(K.size(), K.size());
         for (int k: K) {
             for (int i: K) {
@@ -218,7 +218,7 @@ public class MILPPickupAndDelivery {
             }
         }
 
-        // constraint 2
+        // every truck must return to a (logical) arrival node
         for (int k: K) {
             MPConstraint c = solver.makeConstraint(1,1);
 
@@ -227,7 +227,7 @@ public class MILPPickupAndDelivery {
             }
         }
 
-        // constraint 3
+        // balance flow constraint of each truck
         for (int k: K) {
             for (int j: H) {
                 MPConstraint c1 = solver.makeConstraint(0, 0);
@@ -244,7 +244,7 @@ public class MILPPickupAndDelivery {
             }
         }
 
-        // constraint 4
+        // balance flow constraint at each node
         for (int j: H) {
             MPConstraint c = solver.makeConstraint(0, 0);
             for (int k: K) {
@@ -258,7 +258,7 @@ public class MILPPickupAndDelivery {
             }
         }
 
-        // constraint 5
+        // sub-tour elimination constraint
         t = new MPVariable[K.size()][num_nodes];
         for (int k: K) {
             for (int i=0; i<t[0].length; i++) {
@@ -279,9 +279,7 @@ public class MILPPickupAndDelivery {
          *                      END ROUTE CONSTRAINTS                                 *
          *              START PICKUP AND DELIVERY CONSTRAINTS                         *
          * ****************************************************************************/
-        // constraint 6, 7: in the definition of z
-
-        // constraint 9
+        // all the requests must be served
         for (int i: H) {
             for (int j: H) {
                 MPConstraint c = solver.makeConstraint(request[i][j], request[i][j]);
@@ -291,7 +289,8 @@ public class MILPPickupAndDelivery {
             }
         }
 
-        // constraint 11
+        // if truck k move from hub i to hub j, then
+        // loading when leaving j = loading when leaving i + total picking up at j - total dropping at j
         for (int k: K) {
             for (int i: S1H) {
                 for (int j: HS2) {
@@ -316,7 +315,7 @@ public class MILPPickupAndDelivery {
             }
         }
 
-        // constraint 12
+        // if truck k does not visit hub i, then there is no picking up or dropping off at hub i
         for (int k: K) {
             for (int i: H) {
                 MPConstraint pc = solver.makeConstraint(-M, 0);
@@ -337,6 +336,7 @@ public class MILPPickupAndDelivery {
             }
         }
 
+        // truck k must visit hub i before hub j to serve a request R(i -> j, q)
         for (int k: K) {
             for (int i: H) {
                 for (int j: H) {
@@ -361,6 +361,8 @@ public class MILPPickupAndDelivery {
     }
 
     private void create_obj() {
+        // Minimizing the number of inter-hub movements
+        // this objective function is only temporary
         MPObjective obj = solver.objective();
         for (int k: K) {
             for (int i=0; i<num_nodes; i++) {
