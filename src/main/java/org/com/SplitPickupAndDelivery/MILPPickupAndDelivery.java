@@ -1,27 +1,40 @@
-package org.tiki.SplitPickupAndDelivery;
+package org.com.SplitPickupAndDelivery;
 
 import com.google.ortools.Loader;
 import com.google.ortools.linearsolver.MPConstraint;
+import com.google.ortools.linearsolver.MPObjective;
 import com.google.ortools.linearsolver.MPSolver;
 import com.google.ortools.linearsolver.MPVariable;
 
 import java.util.ArrayList;
 
-public class MILPSolver {
+import static java.lang.Math.round;
+
+/**
+ * The MILPPickupAndDelivery class implements a mixed integer linear programming model
+ * for solving the split pickup and delivery problem between multiple hubs. This solver
+ * require the Google OR-tools library version 9.5.
+ *
+ * @author Le Van Cuong, Pham Quang Dung
+ * @Date: 15/12/2022
+ */
+public class MILPPickupAndDelivery {
 
     private ArrayList<Integer> H;       // set of hubs
     private ArrayList<Integer> S1;      // set of departure nodes
     private ArrayList<Integer> S2;      // set of arrival nodes
-    private ArrayList<Integer> K;       // set of all trucks
-    private double[][] request;
     private int num_nodes;
+    private ArrayList<Integer> K;       // set of all trucks
+    private double[][] request;         // request[i][j] is the amount of boxes needs to be delivered from i to j
+
     private MPSolver solver;
     private MPVariable[][][]  x;
-    private MPVariable t[][];
+    private MPVariable[][] t;
     private MPVariable[][] z;
     private MPVariable[][][] p;
 
-    public Solution solve() {
+    public MILPPickupAndDelivery() {
+
         H = new ArrayList<>();
         for (int i=0; i<Input.N; i++) {
             H.add(i);
@@ -47,8 +60,11 @@ public class MILPSolver {
         request = new double[num_nodes][num_nodes];
         for (Request r: Input.requests) {
             request[r.from_hub][r.to_hub] = r.quantity;
-            System.out.println(r.from_hub + " -> " + r.to_hub + ": " + r.quantity);
+            // System.out.println(r.from_hub + " -> " + r.to_hub + ": " + r.quantity);
         }
+    }
+
+    public Solution solve(boolean verbose) {
 
         Loader.loadNativeLibraries();
         solver = MPSolver.createSolver(String.valueOf(MPSolver.OptimizationProblemType.SCIP_MIXED_INTEGER_PROGRAMMING));
@@ -61,28 +77,74 @@ public class MILPSolver {
         build_model();
         create_obj();
 
+        solver.setTimeLimit(1000 * Parameters.TIME_LIMIT_S);
+        solver.setNumThreads(Parameters.NUMBER_OF_CPUs);
+        if (verbose) {
+            solver.enableOutput();
+        } else {
+            System.out.println("MILP solver is running...");
+        }
+
         final MPSolver.ResultStatus resultStatus = solver.solve();
 
         if (resultStatus == MPSolver.ResultStatus.OPTIMAL || resultStatus == MPSolver.ResultStatus.FEASIBLE) {
+
+            if (resultStatus == MPSolver.ResultStatus.OPTIMAL) {
+                System.out.println("Optimal solution found!");
+            } else {
+                System.out.println("A good solution found!");
+            }
+
             Solution output = new Solution();
-            System.out.println("Solution found");
 
+            ArrayList<ArrayList<Integer>> routes = new ArrayList<>();
             for (int k: K) {
-                for (int i=0; i<num_nodes; i++) {
-                    for (int j=0; j<num_nodes; j++) {
-                        if (x[k][i][j].solutionValue() > 0) {
+                // extract the route of truck k
+                ArrayList<Integer> route_k = new ArrayList<>();
+                route_k.add(H.size() + k);
 
-
-                            double pick = 0;
-                            double drop = 0;
-                            for (int v: H) {
-                                pick += p[k][j][v].solutionValue();
-                                drop += p[k][v][j].solutionValue();
-                            }
-
-                            System.out.println(k + ": " + i + " -> " + j + ", " + t[k][j].solutionValue() + ", " + pick + ", " + drop + ", " + z[k][j].solutionValue());
+                int pre = route_k.get(0);
+                while (!S2.contains(pre)) {
+                    for (int i=0; i<num_nodes; i++) {
+                        if (x[k][pre][i].solutionValue() > 0) {
+                            pre = i;
+                            route_k.add(pre);
+                            break;
                         }
                     }
+                }
+
+                route_k.remove(0);
+                route_k.remove(route_k.size()-1);
+                routes.add(route_k);
+
+                if (route_k.size() > 0) {
+                    double load = ((int) (10000 * z[k][H.size() + k].solutionValue() / Input.capacity.get(k))) / 100.0;
+                    System.out.print("Truck " + (k + 1) + ": DEPARTURE_HUB (" + load + "%)");
+                    for (int hub: route_k) {
+                        load = ((int) (10000 * z[k][hub].solutionValue() / Input.capacity.get(k))) / 100.0;
+                        System.out.print(" -> HUB " + hub + " (" + load + "%)");
+                    }
+                    System.out.println(" -> ARRIVAL HUB.");
+
+                    for (int i: route_k) {
+                        System.out.println("\tOperations at HUB " + i + ":");
+                        for (int j: H) {
+                            if (p[k][i][j].solutionValue() > 1e-6) {
+                                System.out.println("\t\tPick " + round(p[k][i][j].solutionValue()) + " boxes to delivery to HUB " + j);
+                            }
+                        }
+
+                        for (int j: H) {
+                            if (p[k][j][i].solutionValue() > 0) {
+                                System.out.println("\t\tDrop " + round(p[k][j][i].solutionValue()) + " boxes picked from HUB " + j);
+                            }
+                        }
+                        System.out.println("\tLeave HUB " + i + " with " + round(z[k][i].solutionValue()) + " boxes.");
+                        System.out.println("\t--------------------------");
+                    }
+                } else {
+                    System.out.println("Truck " + (k + 1) + ": NOT USED.");
                 }
             }
 
@@ -291,20 +353,23 @@ public class MILPSolver {
                 }
             }
         }
+        /******************************************************************************
+         *                      END PICKUP AND DELIVERY CONSTRAINTS                   *
+         * ****************************************************************************/
 
-        System.out.println("Model built successfully...");
+        System.out.println("MILP model built successfully.");
     }
 
     private void create_obj() {
-//        MPObjective obj = solver.objective();
-//        for (int k: K) {
-//            for (int i=0; i<num_nodes; i++) {
-//                for (int j=0; j<num_nodes; j++) {
-//                     obj.setCoefficient(x[k][i][j], 1);
-//                }
-//            }
-//        }
-//
-//        obj.setMinimization();
+        MPObjective obj = solver.objective();
+        for (int k: K) {
+            for (int i=0; i<num_nodes; i++) {
+                for (int j=0; j<num_nodes; j++) {
+                     obj.setCoefficient(x[k][i][j], 1);
+                }
+            }
+        }
+
+        obj.setMinimization();
     }
 }
