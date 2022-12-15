@@ -17,9 +17,9 @@ public class MILPSolver {
     private int num_nodes;
     private MPSolver solver;
     private MPVariable[][][]  x;
+    private MPVariable t[][];
     private MPVariable[][] z;
     private MPVariable[][][] p;
-    private MPVariable[][][] d;
 
     public Solution solve() {
         H = new ArrayList<>();
@@ -61,7 +61,6 @@ public class MILPSolver {
         build_model();
         create_obj();
 
-        solver.setTimeLimit(60);
         final MPSolver.ResultStatus resultStatus = solver.solve();
 
         if (resultStatus == MPSolver.ResultStatus.OPTIMAL || resultStatus == MPSolver.ResultStatus.FEASIBLE) {
@@ -72,18 +71,17 @@ public class MILPSolver {
                 for (int i=0; i<num_nodes; i++) {
                     for (int j=0; j<num_nodes; j++) {
                         if (x[k][i][j].solutionValue() > 0) {
-                            System.out.println(k + ": " + i + " -> " + j);
+
+
+                            double pick = 0;
+                            double drop = 0;
+                            for (int v: H) {
+                                pick += p[k][j][v].solutionValue();
+                                drop += p[k][v][j].solutionValue();
+                            }
+
+                            System.out.println(k + ": " + i + " -> " + j + ", " + t[k][j].solutionValue() + ", " + pick + ", " + drop + ", " + z[k][j].solutionValue());
                         }
-                    }
-                }
-            }
-
-            for (int k: K) {
-                for (int i: H) {
-                    System.out.println("Truck " + k + " leaves hub " + i + ": " + z[k][i].solutionValue());
-
-                    for (int j: H) {
-                        System.out.println("pick from " + i + " to drop at " + j + ": " + p[k][i][j].solutionValue() + " " + d[k][i][j].solutionValue());
                     }
                 }
             }
@@ -129,12 +127,10 @@ public class MILPSolver {
         }
 
         p = new MPVariable[K.size()][num_nodes][num_nodes];
-        d = new MPVariable[K.size()][num_nodes][num_nodes];
         for (int k: K) {
             for (int i=0; i<num_nodes; i++) {
                 for (int j=0; j<num_nodes; j++) {
                     p[k][i][j] = solver.makeNumVar(0, request[i][j], "");
-                    d[k][i][j] = solver.makeNumVar(0, request[i][j], "");
                 }
             }
         }
@@ -201,7 +197,7 @@ public class MILPSolver {
         }
 
         // constraint 5
-        MPVariable t[][] = new MPVariable[K.size()][num_nodes];
+        t = new MPVariable[K.size()][num_nodes];
         for (int k: K) {
             for (int i=0; i<t[0].length; i++) {
                 t[k][i] = solver.makeIntVar(0, num_nodes, "t[" + k + "," + i + "]");
@@ -223,17 +219,6 @@ public class MILPSolver {
          * ****************************************************************************/
         // constraint 6, 7: in the definition of z
 
-        // constraint 8
-        for (int k: K) {
-            for (int i: H) {
-                for (int j: H) {
-                    MPConstraint c = solver.makeConstraint(0, 0);
-                    c.setCoefficient(p[k][i][j], 1);
-                    c.setCoefficient(d[k][i][j], -1);
-                }
-            }
-        }
-
         // constraint 9
         for (int i: H) {
             for (int j: H) {
@@ -243,17 +228,6 @@ public class MILPSolver {
                 }
             }
         }
-
-        // constraint 10
-//        for (int k: K) {
-//            for (int i: S1H) {
-//                MPConstraint c = solver.makeConstraint(0, M);
-//                c.setCoefficient(z[k][i], 1);
-//                for (int j: S2) {
-//                    c.setCoefficient(x[k][i][j], M);
-//                }
-//            }
-//        }
 
         // constraint 11
         for (int k: K) {
@@ -265,7 +239,7 @@ public class MILPSolver {
                     c1.setCoefficient(x[k][i][j], M);
                     for (int v: H) {
                         c1.setCoefficient(p[k][j][v], -1);
-                        c1.setCoefficient(d[k][v][j], 1);
+                        c1.setCoefficient(p[k][v][j], 1);
                     }
 
                     MPConstraint c2 = solver.makeConstraint(-M, M);
@@ -274,7 +248,7 @@ public class MILPSolver {
                     c2.setCoefficient(x[k][i][j], -M);
                     for (int v: H) {
                         c2.setCoefficient(p[k][j][v], -1);
-                        c2.setCoefficient(d[k][v][j], 1);
+                        c2.setCoefficient(p[k][v][j], 1);
                     }
                 }
             }
@@ -282,13 +256,38 @@ public class MILPSolver {
 
         // constraint 12
         for (int k: K) {
-            for (int j: H) {
-                MPConstraint c = solver.makeConstraint(-M, 0);
-                for (int i: H) {
-                    c.setCoefficient(p[k][j][i], 1);
+            for (int i: H) {
+                MPConstraint pc = solver.makeConstraint(-M, 0);
+                for (int j: H) {
+                    pc.setCoefficient(p[k][i][j], 1);
                 }
-                for (int i: S1H) {
-                    c.setCoefficient(x[k][i][j], -M);
+                for (int j: S1H) {
+                    pc.setCoefficient(x[k][j][i], -M);
+                }
+
+                MPConstraint dc = solver.makeConstraint(-M, 0);
+                for (int j: H) {
+                    dc.setCoefficient(p[k][j][i], 1);
+                }
+                for (int j: S1H) {
+                    dc.setCoefficient(x[k][j][i], -M);
+                }
+            }
+        }
+
+        for (int k: K) {
+            for (int i: H) {
+                for (int j: H) {
+                    MPVariable tmp = solver.makeIntVar(0, 1, "");
+
+                    MPConstraint c1 = solver.makeConstraint(-M, M);
+                    c1.setCoefficient(t[k][i], 1);
+                    c1.setCoefficient(t[k][j], -1);
+                    c1.setCoefficient(tmp, M);
+
+                    MPConstraint c2 = solver.makeConstraint(-M, 0);
+                    c2.setCoefficient(p[k][i][j], 1);
+                    c2.setCoefficient(tmp, -M);
                 }
             }
         }
