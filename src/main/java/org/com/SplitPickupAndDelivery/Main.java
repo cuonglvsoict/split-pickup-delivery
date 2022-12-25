@@ -1,21 +1,23 @@
 package org.com.SplitPickupAndDelivery;
 
+import org.com.SplitPickupAndDelivery.models.InputData;
+import org.com.SplitPickupAndDelivery.models.Solution;
+import org.com.SplitPickupAndDelivery.solver.MILPPickupAndDelivery;
+import org.com.SplitPickupAndDelivery.solver.MappedData;
+import org.com.SplitPickupAndDelivery.solver.MappedSolution;
+import org.com.SplitPickupAndDelivery.utils.IOExcelHandling;
+
 public class Main {
 
     public static void main(String[] args) {
-        if (!Input.read_input_data("data/test01.txt")) {
-            System.out.println("Failed to import problem input.");
-        } else {
-            System.out.println("Problem input loaded successfully.");
-            Input.display();
+        InputData data = IOExcelHandling.readInputData("data/input.xlsx");
+        MappedData.parseInput(data);
+        MappedData.display();
 
-            Parameters.TIME_LIMIT_S = 60;
-            // Parameters.NUMBER_OF_CPUs = Runtime.getRuntime().availableProcessors() - 1;
+        MILPPickupAndDelivery solver = new MILPPickupAndDelivery();
+        MappedSolution raw_solution = solver.solve(true);
 
-            MILPPickupAndDelivery solver = new MILPPickupAndDelivery();
-            solver.solve(false);
-        }
-
-
+        Solution solution = MappedData.resolveOutput(raw_solution);
+        IOExcelHandling.exportSolution("data/output.xlsx", solution);
     }
 }

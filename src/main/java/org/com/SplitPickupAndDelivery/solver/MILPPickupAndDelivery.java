@@ -1,4 +1,4 @@
-package org.com.SplitPickupAndDelivery;
+package org.com.SplitPickupAndDelivery.solver;
 
 import com.google.ortools.Loader;
 import com.google.ortools.linearsolver.MPConstraint;
@@ -36,35 +36,35 @@ public class MILPPickupAndDelivery {
     public MILPPickupAndDelivery() {
 
         H = new ArrayList<>();
-        for (int i=0; i<Input.N; i++) {
+        for (int i=0; i<MappedData.N; i++) {
             H.add(i);
         }
 
         S1 = new ArrayList<>();
-        for (int i=Input.N; i<Input.N + Input.K; i++) {
+        for (int i=MappedData.N; i<MappedData.N + MappedData.K; i++) {
             S1.add(i);
         }
 
         S2 = new ArrayList<>();
-        for (int i=Input.N + Input.K; i<Input.N + 2 * Input.K; i++) {
+        for (int i=MappedData.N + MappedData.K; i<MappedData.N + 2 * MappedData.K; i++) {
             S2.add(i);
         }
 
         K = new ArrayList<>();
-        for (int k=0; k<Input.K; k++) {
+        for (int k=0; k<MappedData.K; k++) {
             K.add(k);
         }
 
         num_nodes = H.size() + S1.size() + S2.size();
 
         request = new double[num_nodes][num_nodes];
-        for (Request r: Input.requests) {
+        for (MappedRequest r: MappedData.requests) {
             request[r.from_hub][r.to_hub] = r.quantity;
             // System.out.println(r.from_hub + " -> " + r.to_hub + ": " + r.quantity);
         }
     }
 
-    public Solution solve(boolean verbose) {
+    public MappedSolution solve(boolean verbose) {
 
         Loader.loadNativeLibraries();
         solver = MPSolver.createSolver(String.valueOf(MPSolver.OptimizationProblemType.SCIP_MIXED_INTEGER_PROGRAMMING));
@@ -95,9 +95,9 @@ public class MILPPickupAndDelivery {
                 System.out.println("A good solution found!");
             }
 
-            Solution output = new Solution();
-
             ArrayList<ArrayList<Integer>> routes = new ArrayList<>();
+            ArrayList<ArrayList<ArrayList<MappedRequest>>> route_pickup = new ArrayList<>();
+            ArrayList<ArrayList<ArrayList<MappedRequest>>> route_delivery = new ArrayList<>();
             for (int k: K) {
                 // extract the route of truck k
                 ArrayList<Integer> route_k = new ArrayList<>();
@@ -116,37 +116,56 @@ public class MILPPickupAndDelivery {
 
                 route_k.remove(0);
                 route_k.remove(route_k.size()-1);
-                routes.add(route_k);
+
+                ArrayList<ArrayList<MappedRequest>> pickup = new ArrayList<>();
+                ArrayList<ArrayList<MappedRequest>> delivery = new ArrayList<>();
 
                 if (route_k.size() > 0) {
-                    double load = ((int) (10000 * z[k][H.size() + k].solutionValue() / Input.capacity.get(k))) / 100.0;
+                    double load = ((int) (10000 * z[k][H.size() + k].solutionValue() / MappedData.capacity.get(k))) / 100.0;
                     System.out.print("Truck " + (k + 1) + ": DEPARTURE_HUB (" + load + "%)");
                     for (int hub: route_k) {
-                        load = ((int) (10000 * z[k][hub].solutionValue() / Input.capacity.get(k))) / 100.0;
+                        load = ((int) (10000 * z[k][hub].solutionValue() / MappedData.capacity.get(k))) / 100.0;
                         System.out.print(" -> HUB " + hub + " (" + load + "%)");
                     }
                     System.out.println(" -> ARRIVAL HUB.");
 
                     for (int i: route_k) {
                         System.out.println("\tOperations at HUB " + i + ":");
+
+                        ArrayList<MappedRequest> pickup_operations = new ArrayList<>();
+                        ArrayList<MappedRequest> drop_operations = new ArrayList<>();
                         for (int j: H) {
                             if (p[k][i][j].solutionValue() > 1e-6) {
                                 System.out.println("\t\tPick " + round(p[k][i][j].solutionValue()) + " boxes to delivery to HUB " + j);
+                                pickup_operations.add(new MappedRequest(i, j, round(p[k][i][j].solutionValue())));
                             }
                         }
 
                         for (int j: H) {
                             if (p[k][j][i].solutionValue() > 0) {
                                 System.out.println("\t\tDrop " + round(p[k][j][i].solutionValue()) + " boxes picked from HUB " + j);
+                                drop_operations.add(new MappedRequest(j, i, round(p[k][j][i].solutionValue())));
                             }
                         }
                         System.out.println("\tLeave HUB " + i + " with " + round(z[k][i].solutionValue()) + " boxes.");
                         System.out.println("\t--------------------------");
+
+                        pickup.add(pickup_operations);
+                        delivery.add(drop_operations);
                     }
                 } else {
                     System.out.println("Truck " + (k + 1) + ": NOT USED.");
                 }
+
+                routes.add(route_k);
+                route_pickup.add(pickup);
+                route_delivery.add(delivery);
             }
+
+            MappedSolution output = new MappedSolution();
+            output.routes = routes;
+            output.pickup = route_pickup;
+            output.delivery = route_delivery;
 
             return output;
         } else {
@@ -168,7 +187,7 @@ public class MILPPickupAndDelivery {
         S1H.addAll(H);
 
         // create decision variables
-        x = new MPVariable[Input.K][num_nodes][num_nodes];
+        x = new MPVariable[MappedData.K][num_nodes][num_nodes];
         for (int k: K) {
             for (int i=0; i<num_nodes; i++) {
                 for (int j=0; j<num_nodes; j++) {
@@ -184,7 +203,7 @@ public class MILPPickupAndDelivery {
             }
 
             for (int i: HS2) {
-                z[k][i] = solver.makeNumVar(0, Input.capacity.get(k), "");
+                z[k][i] = solver.makeNumVar(0, MappedData.capacity.get(k), "");
             }
         }
 

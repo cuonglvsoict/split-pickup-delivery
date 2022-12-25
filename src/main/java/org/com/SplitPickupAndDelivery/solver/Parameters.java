@@ -1,4 +1,4 @@
-package org.com.SplitPickupAndDelivery;
+package org.com.SplitPickupAndDelivery.solver;
 
 public class Parameters {
 
