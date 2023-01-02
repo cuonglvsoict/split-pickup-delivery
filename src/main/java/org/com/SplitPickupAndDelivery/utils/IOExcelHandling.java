@@ -67,7 +67,7 @@ public class IOExcelHandling {
             }
             data.hubs = hub_list;
 
-            // read hubs info
+            // read traveling time info
             HashMap<Pair<String, String>, Long> travel_time = new HashMap<Pair<String, String>, Long>();
             XSSFSheet distance_sheet = workbook.getSheetAt(2);
             rowIterator = distance_sheet.iterator();
@@ -106,16 +106,17 @@ public class IOExcelHandling {
 
                 truck.setTruckID(row.getCell(0).getStringCellValue());
                 truck.setLocation(row.getCell(1).getStringCellValue());
+                truck.setStartWorkingTime(row.getCell(2).getStringCellValue());
 
-                if (row.getCell(2).getCellType() == CellType.NUMERIC) {
-                    truck.setCapacity(row.getCell(2).getNumericCellValue());
+                if (row.getCell(3).getCellType() == CellType.NUMERIC) {
+                    truck.setCapacity(row.getCell(3).getNumericCellValue());
                 } else {
-                    truck.setCapacity(Double.parseDouble(row.getCell(2).getStringCellValue()));
+                    truck.setCapacity(Double.parseDouble(row.getCell(3).getStringCellValue()));
                 }
 
-                if (row.getCell(3) != null) {
+                if (row.getCell(4) != null && row.getCell(4).getStringCellValue().length() > 0) {
                     ArrayList<String> fp = new ArrayList<>();
-                    String[] arr_fb = row.getCell(3).getStringCellValue().split(",");
+                    String[] arr_fb = row.getCell(4).getStringCellValue().replace(" ", "").split(",");
                     fp.addAll(Arrays.stream(arr_fb).collect(Collectors.toList()));
                     truck.setForbiddenPoints(fp);
                 }
@@ -136,13 +137,33 @@ public class IOExcelHandling {
         XSSFWorkbook workbook = new XSSFWorkbook();
 
         // saver route info
-        XSSFSheet sheet = workbook.createSheet("Solution");
-        int row_num = 0;
+        XSSFSheet routes = workbook.createSheet("Routes");
+        XSSFSheet operations = workbook.createSheet("Solution details");
 
-        // header row
-        Row row = sheet.createRow(row_num++);
+        // header row of the route sheet
+        int route_row = 0;
+        Row row = routes.createRow(route_row++);
         int cell_num = 0;
         Cell cel = row.createCell(cell_num++);
+        cel.setCellValue("TruckID");
+
+        cel = row.createCell(cell_num++);
+        cel.setCellValue("HUB");
+
+        cel = row.createCell(cell_num++);
+        cel.setCellValue("Seq");
+
+        cel = row.createCell(cell_num++);
+        cel.setCellValue("Pick up");
+
+        cel = row.createCell(cell_num++);
+        cel.setCellValue("Drop off");
+
+        // header row of the solution details
+        int operation_row = 0;
+        row = operations.createRow(operation_row++);
+        cell_num = 0;
+        cel = row.createCell(cell_num++);
         cel.setCellValue("TruckID");
 
         cel = row.createCell(cell_num++);
@@ -165,12 +186,19 @@ public class IOExcelHandling {
                 continue;
             }
 
+            int seq = 1;
             for (int i=0; i<r.path.size(); i++) {
                 Hub h = r.path.get(i);
+                double total_pickup = 0;
+                double total_drop = 0;
 
                 for (int j=0; j<r.pickup.get(i).size(); j++) {
+                    if (r.pickup.get(i).get(j).getDemand() == 0) {
+                        continue;
+                    }
+
                     // pickup operation at hub h
-                    row = sheet.createRow(row_num++);
+                    row = operations.createRow(operation_row++);
                     cell_num = 0;
                     cel = row.createCell(cell_num++);
                     cel.setCellValue(r.truckID);
@@ -179,21 +207,26 @@ public class IOExcelHandling {
                     cel.setCellValue(h.getHubID());
 
                     cel = row.createCell(cell_num++);
-                    cel.setCellValue(i+1);
+                    cel.setCellValue(seq);
 
                     cel = row.createCell(cell_num++);
                     cel.setCellValue(r.pickup.get(i).get(j).getRequestID());
 
                     cel = row.createCell(cell_num++);
                     cel.setCellValue(r.pickup.get(i).get(j).getDemand());
+                    total_pickup += r.pickup.get(i).get(j).getDemand();
 
                     cel = row.createCell(cell_num++);
                     cel.setCellValue(" ");
                 }
 
                 for (int j=0; j<r.drop.get(i).size(); j++) {
+                    if (r.drop.get(i).get(j).getDemand() == 0) {
+                        continue;
+                    }
+
                     // drop operation at hub h
-                    row = sheet.createRow(row_num++);
+                    row = operations.createRow(operation_row++);
                     cell_num = 0;
                     cel = row.createCell(cell_num++);
                     cel.setCellValue(r.truckID);
@@ -202,7 +235,7 @@ public class IOExcelHandling {
                     cel.setCellValue(h.getHubID());
 
                     cel = row.createCell(cell_num++);
-                    cel.setCellValue(i+1);
+                    cel.setCellValue(seq);
 
                     cel = row.createCell(cell_num++);
                     cel.setCellValue(r.drop.get(i).get(j).getRequestID());
@@ -212,7 +245,27 @@ public class IOExcelHandling {
 
                     cel = row.createCell(cell_num++);
                     cel.setCellValue(r.drop.get(i).get(j).getDemand());
+                    total_drop = r.drop.get(i).get(j).getDemand();
                 }
+
+                seq++;
+
+                row = routes.createRow(route_row++);
+                cell_num = 0;
+                cel = row.createCell(cell_num++);
+                cel.setCellValue(r.truckID);
+
+                cel = row.createCell(cell_num++);
+                cel.setCellValue(h.getHubID());
+
+                cel = row.createCell(cell_num++);
+                cel.setCellValue(i+1);
+
+                cel = row.createCell(cell_num++);
+                cel.setCellValue(total_pickup);
+
+                cel = row.createCell(cell_num++);
+                cel.setCellValue(total_drop);
             }
         }
 

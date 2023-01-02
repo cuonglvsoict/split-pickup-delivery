@@ -6,7 +6,17 @@ public class Truck {
 
     private String truckID;
     private String location;
+    private String startWorkingTime;
     private double capacity;
+
+    public String getStartWorkingTime() {
+        return startWorkingTime;
+    }
+
+    public void setStartWorkingTime(String startWorkingTime) {
+        this.startWorkingTime = startWorkingTime;
+    }
+
     private ArrayList<String> forbiddenPoints;
 
     public String getTruckID() {

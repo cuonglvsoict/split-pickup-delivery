@@ -14,8 +14,6 @@ import static java.lang.Math.round;
  * The MILPPickupAndDelivery class implements a mixed integer linear programming model
  * for solving the split pickup and delivery problem between multiple hubs. This solver
  * require the Google OR-tools library version 9.5.
- *
- * @author Le Van Cuong, Pham Quang Dung
  * @Date: 15/12/2022
  */
 public class MILPPickupAndDelivery {

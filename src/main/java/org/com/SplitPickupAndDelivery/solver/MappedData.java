@@ -38,7 +38,9 @@ public class MappedData {
     public static int K;                        // number of trucks
     public static double[][] travel_time;       // travel time between hubs, travel_time[i][j] = -1 if there is no direct path from i to j
     public static ArrayList<Double> capacity;
+    public static ArrayList<Integer> truck_location;
     public static ArrayList<ArrayList<Integer>> forbiddenPoints;
+    public static ArrayList<Long> startWorkingTime;
     public static ArrayList<MappedRequest> requests;
 
     public static HashMap<String, Integer> _hubID2HubIndex;
@@ -60,6 +62,22 @@ public class MappedData {
         for (int i=0; i<input_data.trucks.size(); i++) {
             _truckID2TruckIndex.put(input_data.trucks.get(i).getTruckID(), i);
             capacity.add(input_data.trucks.get(i).getCapacity());
+        }
+
+        truck_location = new ArrayList<>();
+        for (int i=0; i<input_data.trucks.size(); i++) {
+            truck_location.add(_hubID2HubIndex.get(input_data.trucks.get(i).getLocation()));
+        }
+
+        startWorkingTime = new ArrayList<>();
+        for (int i=0; i<input_data.trucks.size(); i++) {
+            SimpleDateFormat formatter = new SimpleDateFormat("yyyy-MM-dd HH:mm:SS");
+            try {
+                startWorkingTime.add(formatter.parse(input_data.trucks.get(i).getStartWorkingTime()).getTime());
+            } catch (ParseException e) {
+                e.printStackTrace();
+                throw new RuntimeException(e);
+            }
         }
 
         forbiddenPoints = new ArrayList<>();
@@ -110,6 +128,7 @@ public class MappedData {
                 mapped_req.deliveryTime = formatter.parse(req.getDeliveryDateTime()).getTime();
             } catch (ParseException e) {
                 e.printStackTrace();
+                throw new RuntimeException(e);
             }
 
             requests.add(mapped_req);
