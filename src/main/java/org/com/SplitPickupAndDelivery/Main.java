@@ -8,11 +8,11 @@ import org.com.SplitPickupAndDelivery.utils.IOExcelHandling;
 public class Main {
 
     public static void main(String[] args) {
-        InputData data = IOExcelHandling.readInputData("data/input2.xlsx");
+        InputData data = IOExcelHandling.readInputData("data/input.xlsx");
         MappedData.parseInput(data);
         MappedData.display();
 
-        Parameters.TIME_LIMIT_S = 1000;
+        Parameters.TIME_LIMIT_S = 60;
         MILPPickupAndDeliveryWithTimeConstraints solver = new MILPPickupAndDeliveryWithTimeConstraints();
         MappedSolution raw_solution = solver.solve(true);
 

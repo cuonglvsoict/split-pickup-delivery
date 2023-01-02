@@ -203,7 +203,7 @@ public class MILPPickupAndDeliveryWithTimeConstraints {
 
     private void build_model() {
         double M = 1e6;
-        double M_time = 1e9;
+        double M_time = 1e8;
 
         ArrayList<Integer> HS2 = new ArrayList<>();
         HS2.addAll(H);
