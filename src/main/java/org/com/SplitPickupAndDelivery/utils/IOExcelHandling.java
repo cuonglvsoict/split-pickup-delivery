@@ -192,34 +192,6 @@ public class IOExcelHandling {
                 double total_pickup = 0;
                 double total_drop = 0;
 
-                for (int j=0; j<r.pickup.get(i).size(); j++) {
-                    if (r.pickup.get(i).get(j).getDemand() == 0) {
-                        continue;
-                    }
-
-                    // pickup operation at hub h
-                    row = operations.createRow(operation_row++);
-                    cell_num = 0;
-                    cel = row.createCell(cell_num++);
-                    cel.setCellValue(r.truckID);
-
-                    cel = row.createCell(cell_num++);
-                    cel.setCellValue(h.getHubID());
-
-                    cel = row.createCell(cell_num++);
-                    cel.setCellValue(seq);
-
-                    cel = row.createCell(cell_num++);
-                    cel.setCellValue(r.pickup.get(i).get(j).getRequestID());
-
-                    cel = row.createCell(cell_num++);
-                    cel.setCellValue(r.pickup.get(i).get(j).getDemand());
-                    total_pickup += r.pickup.get(i).get(j).getDemand();
-
-                    cel = row.createCell(cell_num++);
-                    cel.setCellValue(" ");
-                }
-
                 for (int j=0; j<r.drop.get(i).size(); j++) {
                     if (r.drop.get(i).get(j).getDemand() == 0) {
                         continue;
@@ -245,27 +217,60 @@ public class IOExcelHandling {
 
                     cel = row.createCell(cell_num++);
                     cel.setCellValue(r.drop.get(i).get(j).getDemand());
-                    total_drop = r.drop.get(i).get(j).getDemand();
+
+                    total_drop += r.drop.get(i).get(j).getDemand();
                 }
 
-                seq++;
+                for (int j=0; j<r.pickup.get(i).size(); j++) {
+                    if (r.pickup.get(i).get(j).getDemand() == 0) {
+                        continue;
+                    }
 
-                row = routes.createRow(route_row++);
-                cell_num = 0;
-                cel = row.createCell(cell_num++);
-                cel.setCellValue(r.truckID);
+                    // pickup operation at hub h
+                    row = operations.createRow(operation_row++);
+                    cell_num = 0;
+                    cel = row.createCell(cell_num++);
+                    cel.setCellValue(r.truckID);
 
-                cel = row.createCell(cell_num++);
-                cel.setCellValue(h.getHubID());
+                    cel = row.createCell(cell_num++);
+                    cel.setCellValue(h.getHubID());
 
-                cel = row.createCell(cell_num++);
-                cel.setCellValue(i+1);
+                    cel = row.createCell(cell_num++);
+                    cel.setCellValue(seq);
 
-                cel = row.createCell(cell_num++);
-                cel.setCellValue(total_pickup);
+                    cel = row.createCell(cell_num++);
+                    cel.setCellValue(r.pickup.get(i).get(j).getRequestID());
 
-                cel = row.createCell(cell_num++);
-                cel.setCellValue(total_drop);
+                    cel = row.createCell(cell_num++);
+                    cel.setCellValue(r.pickup.get(i).get(j).getDemand());
+
+                    total_pickup += r.pickup.get(i).get(j).getDemand();
+
+                    cel = row.createCell(cell_num++);
+                    cel.setCellValue(" ");
+                }
+
+                if (total_drop > 0 || total_pickup > 0) {
+                    seq++;
+
+                    row = routes.createRow(route_row++);
+                    cell_num = 0;
+                    cel = row.createCell(cell_num++);
+                    cel.setCellValue(r.truckID);
+
+                    cel = row.createCell(cell_num++);
+                    cel.setCellValue(h.getHubID());
+
+                    cel = row.createCell(cell_num++);
+                    cel.setCellValue(i+1);
+
+                    cel = row.createCell(cell_num++);
+                    cel.setCellValue(total_pickup);
+
+                    cel = row.createCell(cell_num++);
+                    cel.setCellValue(total_drop);
+                }
+
             }
         }
 

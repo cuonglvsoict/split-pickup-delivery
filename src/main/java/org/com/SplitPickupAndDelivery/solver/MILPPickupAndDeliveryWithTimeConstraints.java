@@ -145,8 +145,9 @@ public class MILPPickupAndDeliveryWithTimeConstraints {
                     double load = ((int) (10000 * z[k][H.size() + k].solutionValue() / MappedData.capacity.get(k))) / 100.0;
                     System.out.print("Truck " + (k + 1) + ": ");
                     for (int hub: route_k) {
+                        String hub_ID = MappedData._hubIndex2hubID.get(hub);
                         load = ((int) (10000 * z[k][hub].solutionValue() / MappedData.capacity.get(k))) / 100.0;
-                        System.out.print(" -> HUB " + hub + " (" + load + "%) ");
+                        System.out.print(" -> HUB " + hub + ", load=" + load + "%, time=");
 
                         long ti = round(arrival_time[k][hub].solutionValue() + base_time);
                         Date date = new Date(ti);
@@ -154,30 +155,47 @@ public class MILPPickupAndDeliveryWithTimeConstraints {
                     }
                     System.out.println();
 
-                    for (int i: route_k) {
-                        System.out.println("\tOperations at HUB " + i + ":");
-
+                    ArrayList<Integer> _route_k = new ArrayList<>();
+                    int idx = 0;
+                    String pre_hub = "";
+                    while (idx < route_k.size()) {
+                        int i = route_k.get(idx++);
                         ArrayList<MappedRequest> pickup_operations = new ArrayList<>();
                         ArrayList<MappedRequest> drop_operations = new ArrayList<>();
+
+                        if (!MappedData._hubIndex2hubID.get(i).equals(pre_hub)) {
+                            System.out.println("\tOperations at HUB " + MappedData._hubIndex2hubID.get(i) + ":");
+                        }
+
                         for (int j: H) {
                             if (p[k][i][j].solutionValue() > 1e-3) {
-                                System.out.println("\t\tPick " + round(p[k][i][j].solutionValue()) + " boxes to delivery to HUB " + j);
+                                System.out.println("\t\tPick " + round(p[k][i][j].solutionValue()) + " boxes to delivery to HUB " + MappedData._hubIndex2hubID.get(j) + "");
                                 pickup_operations.add(new MappedRequest(i, j, round(p[k][i][j].solutionValue())));
                             }
                         }
 
                         for (int j: H) {
                             if (p[k][j][i].solutionValue() > 1e-3) {
-                                System.out.println("\t\tDrop " + round(p[k][j][i].solutionValue()) + " boxes picked from HUB " + j);
+                                System.out.println("\t\tDrop " + round(p[k][j][i].solutionValue()) + " boxes picked from HUB " + MappedData._hubIndex2hubID.get(j) + "");
                                 drop_operations.add(new MappedRequest(j, i, round(p[k][j][i].solutionValue())));
                             }
                         }
-                        System.out.println("\tLeave HUB " + i + " with " + round(z[k][i].solutionValue()) + " boxes.");
-                        System.out.println("\t--------------------------");
 
-                        pickup.add(pickup_operations);
-                        delivery.add(drop_operations);
+                        if (!MappedData._hubIndex2hubID.get(i).equals(pre_hub)) {
+                            _route_k.add(i);
+
+                            pickup.add(pickup_operations);
+                            delivery.add(drop_operations);
+                        } else {
+                            pickup.get(pickup.size() - 1).addAll(pickup_operations);
+                            delivery.get(delivery.size() - 1).addAll(drop_operations);
+                        }
+
+                        pre_hub = MappedData._hubIndex2hubID.get(i);
                     }
+                    route_k.clear();
+                    route_k.addAll(_route_k);
+
                 } else {
                     System.out.println("Truck " + (k + 1) + ": NOT USED.");
                     route_k.clear();
@@ -476,13 +494,14 @@ public class MILPPickupAndDeliveryWithTimeConstraints {
     }
 
     private void create_obj() {
-        // Minimizing the number of inter-hub movements
-        // this objective function is only temporary
+
         MPObjective obj = solver.objective();
         for (int k: K) {
-            for (int i=0; i<num_nodes; i++) {
-                for (int j=0; j<num_nodes; j++) {
-                    obj.setCoefficient(x[k][i][j], 1);
+            for (int i: H) {
+                for (int j: H) {
+                    if (MappedData._mapPickup2Delivery.get(i) == null || MappedData._mapPickup2Delivery.get(i) != j) {
+                        obj.setCoefficient(x[k][i][j], 1);
+                    }
                 }
             }
         }

@@ -8,7 +8,7 @@ import org.com.SplitPickupAndDelivery.utils.IOExcelHandling;
 public class Main {
 
     public static void main(String[] args) {
-        InputData data = IOExcelHandling.readInputData("data/input.xlsx");
+        InputData data = IOExcelHandling.readInputData("data/input-2.xlsx");
         MappedData.parseInput(data);
         MappedData.display();
 

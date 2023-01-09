@@ -9,6 +9,7 @@ import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Scanner;
 
 class MappedRequest {
@@ -44,16 +45,21 @@ public class MappedData {
     public static ArrayList<MappedRequest> requests;
 
     public static HashMap<String, Integer> _hubID2HubIndex;
+    public static HashMap<Integer, String> _hubIndex2hubID;
     public static HashMap<String, Integer> _truckID2TruckIndex;
     public static HashMap<Pair<Integer, Integer>, Request> _mapRequest;
+
+    public static HashMap<Integer, Integer> _mapPickup2Delivery;
 
     public static void parseInput(InputData input_data) {
         data = input_data;
 
         N = input_data.hubs.size();
         _hubID2HubIndex = new HashMap<>();
+        _hubIndex2hubID = new HashMap<>();
         for (int i=0; i<input_data.hubs.size(); i++) {
             _hubID2HubIndex.put(input_data.hubs.get(i).getHubID(), i);
+            _hubIndex2hubID.put(i, input_data.hubs.get(i).getHubID());
         }
 
         K = input_data.trucks.size();
@@ -80,40 +86,9 @@ public class MappedData {
             }
         }
 
-        forbiddenPoints = new ArrayList<>();
-        for (int i=0; i<K; i++) {
-            if (input_data.trucks.get(i).getForbiddenPoints() == null) {
-                forbiddenPoints.add(null);
-            } else {
-                ArrayList<Integer> fbp = new ArrayList<>();
-                for (String point: input_data.trucks.get(i).getForbiddenPoints()) {
-                    fbp.add(_hubID2HubIndex.get(point));
-                }
-
-                forbiddenPoints.add(fbp);
-            }
-        }
-
-        travel_time = new double[N][N];
-        for (int i=0; i<N; i++) {
-            for (int j=0; j<N; j++) {
-                if (i == j) {
-                    travel_time[i][j] = 0;
-                } else {
-                    Pair<String, String> key = new Pair<>(input_data.hubs.get(i).getHubID(), input_data.hubs.get(j).getHubID());
-                    Long time = input_data.travel_time.get(key);
-
-                    if (time == null) {
-                        travel_time[i][j] = -1;
-                    } else {
-                        travel_time[i][j] = time;
-                    }
-                }
-            }
-        }
-
         requests = new ArrayList<>();
         _mapRequest = new HashMap<>();
+        HashSet<Integer> pickup_points = new HashSet<>();
         for (Request req: input_data.requests) {
             MappedRequest mapped_req = new MappedRequest();
             SimpleDateFormat formatter = new SimpleDateFormat("yyyy-MM-dd HH:mm:SS");
@@ -122,6 +97,8 @@ public class MappedData {
             mapped_req.from_hub = _hubID2HubIndex.get(req.getPickupPoint());
             mapped_req.to_hub = _hubID2HubIndex.get(req.getDeliveryPoint());
             mapped_req.quantity = req.getDemand();
+
+            pickup_points.add(mapped_req.from_hub);
 
             try {
                 mapped_req.pickupTime = formatter.parse(req.getPickupDateTime()).getTime();
@@ -133,6 +110,79 @@ public class MappedData {
 
             requests.add(mapped_req);
             _mapRequest.put(new Pair<>(mapped_req.from_hub, mapped_req.to_hub), req);
+        }
+
+        for (int i=0; i<input_data.trucks.size(); i++) {
+            pickup_points.add(_hubID2HubIndex.get(input_data.trucks.get(i).getLocation()));
+        }
+
+        _mapPickup2Delivery = new HashMap<>();
+        for (MappedRequest mapped_req: requests) {
+            Request req = _mapRequest.get(new Pair<>(mapped_req.from_hub, mapped_req.to_hub));
+
+            if (pickup_points.contains(mapped_req.to_hub)) {
+                Integer logic_point = _mapPickup2Delivery.get(mapped_req.to_hub);
+
+                if (logic_point == null) {
+                    logic_point = N++;
+                    _mapPickup2Delivery.put(mapped_req.to_hub, logic_point);
+                    _hubIndex2hubID.put(logic_point, input_data.hubs.get(mapped_req.to_hub).getHubID());
+                }
+
+                mapped_req.to_hub = logic_point;
+            }
+
+            _mapRequest.put(new Pair<>(mapped_req.from_hub, mapped_req.to_hub), req);
+        }
+
+        forbiddenPoints = new ArrayList<>();
+        for (int i=0; i<K; i++) {
+            if (input_data.trucks.get(i).getForbiddenPoints() == null) {
+                forbiddenPoints.add(null);
+            } else {
+                ArrayList<Integer> fbp = new ArrayList<>();
+                for (String point: input_data.trucks.get(i).getForbiddenPoints()) {
+                    fbp.add(_hubID2HubIndex.get(point));
+                    fbp.add(_mapPickup2Delivery.get(_hubID2HubIndex.get(point)));
+                }
+
+                forbiddenPoints.add(fbp);
+            }
+        }
+
+        travel_time = new double[N][N];
+        for (int i=0; i<input_data.hubs.size(); i++) {
+            for (int j=0; j<input_data.hubs.size(); j++) {
+                if (i != j) {
+                    Pair<String, String> key = new Pair<>(input_data.hubs.get(i).getHubID(), input_data.hubs.get(j).getHubID());
+                    Long time = input_data.travel_time.get(key);
+                    long time_val = time == null ? -1 : time;
+
+                    Integer logical_i = _mapPickup2Delivery.get(i);
+                    Integer logical_j = _mapPickup2Delivery.get(j);
+
+                    travel_time[i][j] = time_val;
+
+                    if (logical_i != null) {
+                        travel_time[logical_i][j] = time_val;
+                    }
+
+                    if (logical_j != null) {
+                        travel_time[i][logical_j] = time_val;
+                    }
+
+                    if (logical_i != null && logical_j != null) {
+                        travel_time[logical_i][logical_j] = time_val;
+                    }
+                }
+            }
+        }
+
+        for (int i=0; i<N; i++) {
+            for (int j=0; j<N; j++) {
+                System.out.print(travel_time[i][j] + "\t");
+            }
+            System.out.println();
         }
     }
 
@@ -154,7 +204,16 @@ public class MappedData {
                 ArrayList<ArrayList<Request>> drop_operations = new ArrayList<>();
 
                 for (int i=0; i<raw_routes.get(r).size(); i++) {
-                    path.add(data.hubs.get(raw_routes.get(r).get(i)));
+                    int hub_idx = raw_routes.get(r).get(i);
+                    if (hub_idx >= data.hubs.size()) {
+                        for (int p: _mapPickup2Delivery.keySet()) {
+                            if (_mapPickup2Delivery.get(p) == hub_idx) {
+                                hub_idx = p;
+                                break;
+                            }
+                        }
+                    }
+                    path.add(data.hubs.get(hub_idx));
 
                     ArrayList<Request> pick = new ArrayList<>();
                     for (MappedRequest rp: raw_pick.get(r).get(i)) {
@@ -188,31 +247,6 @@ public class MappedData {
 
         solution.routes = routes;
         return solution;
-    }
-
-    public static boolean read_input_data(String filepath) {
-        try {
-            Scanner in = new Scanner(new File(filepath));
-
-            N = in.nextInt();
-            K = in.nextInt();
-
-            capacity = new ArrayList<>();
-            for (int k=0; k<K; k++) {
-                capacity.add(in.nextDouble());
-            }
-
-            int req_no = in.nextInt();
-            requests = new ArrayList<>();
-            for (int i=0; i<req_no; i++) {
-                requests.add(new MappedRequest(in.nextInt(), in.nextInt(), in.nextDouble()));
-            }
-
-            in.close();
-            return true;
-        } catch (FileNotFoundException e) {
-            return false;
-        }
     }
 
     public static void display() {
